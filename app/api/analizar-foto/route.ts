@@ -1,6 +1,7 @@
 import OpenAI from 'openai'
 
-const PROMPT = `Analiza esta imagen de receta y extrae la información en JSON.
+const PROMPT = `Analiza estas imágenes de receta y extrae la información en JSON.
+Pueden ser varias fotos de la misma receta (portada, ingredientes, pasos, etc.) — úsalas todas juntas.
 Devuelve SOLO JSON válido, sin markdown, sin explicaciones, sin bloques de código.
 
 El JSON debe tener exactamente estos campos:
@@ -22,15 +23,23 @@ export async function POST(request: Request) {
 
   try {
     const formData = await request.formData()
-    const file = formData.get('imagen') as File | null
+    const files = formData.getAll('imagen') as File[]
 
-    if (!file) {
+    if (files.length === 0) {
       return Response.json({ error: 'No se recibió ninguna imagen.' }, { status: 400 })
     }
 
-    const bytes = await file.arrayBuffer()
-    const base64 = Buffer.from(bytes).toString('base64')
-    const mimeType = file.type || 'image/jpeg'
+    const imageBlocks = await Promise.all(
+      files.map(async (file) => {
+        const bytes = await file.arrayBuffer()
+        const base64 = Buffer.from(bytes).toString('base64')
+        const mimeType = file.type || 'image/jpeg'
+        return {
+          type: 'image_url' as const,
+          image_url: { url: `data:${mimeType};base64,${base64}`, detail: 'high' as const },
+        }
+      })
+    )
 
     const response = await openai.chat.completions.create({
       model: 'gpt-4o',
@@ -40,10 +49,7 @@ export async function POST(request: Request) {
           role: 'user',
           content: [
             { type: 'text', text: PROMPT },
-            {
-              type: 'image_url',
-              image_url: { url: `data:${mimeType};base64,${base64}`, detail: 'high' },
-            },
+            ...imageBlocks,
           ],
         },
       ],

@@ -248,7 +248,7 @@ function FotoForm({ onSuccess }: { onSuccess: () => void }) {
     const compressed = await Promise.all(imageFiles.map(compressImage))
     try {
       const fd = new FormData()
-      fd.append('imagen', imageFiles[0])
+      imageFiles.forEach((f) => fd.append('imagen', f))
       const res = await fetch('/api/analizar-foto', { method: 'POST', body: fd })
       if (!res.ok) throw new Error(await res.text())
       const json = await res.json()
