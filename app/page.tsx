@@ -122,6 +122,8 @@ function EmptyState() {
 export default function GalleryPage() {
   const [recetas, setRecetas] = useState<Receta[]>([])
   const [loading, setLoading] = useState(true)
+  const [categoriaActiva, setCategoriaActiva] = useState<string>('')
+  const [busquedaIng, setBusquedaIng] = useState<string>('')
 
   useEffect(() => {
     async function fetchRecetas() {
@@ -138,6 +140,20 @@ export default function GalleryPage() {
     }
     fetchRecetas()
   }, [])
+
+  const categoriasPresentes = Array.from(
+    new Set(recetas.map((r) => r.categoria).filter(Boolean))
+  ).sort()
+
+  const recetasFiltradas = recetas.filter((r) => {
+    const pasaCategoria = !categoriaActiva || r.categoria === categoriaActiva
+    const termino = busquedaIng.trim().toLowerCase()
+    const pasaIngrediente =
+      !termino ||
+      r.ingredientes?.some((ing) => ing.toLowerCase().includes(termino)) ||
+      r.nombre.toLowerCase().includes(termino)
+    return pasaCategoria && pasaIngrediente
+  })
 
   return (
     <div className="min-h-screen" style={{ background: '#FBF3E8' }}>
@@ -186,17 +202,82 @@ export default function GalleryPage() {
         </Link>
       </header>
 
-      {/* Recipe count */}
+      {/* Filter bar */}
       {!loading && recetas.length > 0 && (
-        <div className="text-center py-6">
-          <p style={{ color: '#A0846F', fontFamily: 'var(--font-body)', fontSize: '0.875rem', letterSpacing: '0.05em' }}>
-            {recetas.length} {recetas.length === 1 ? 'receta guardada' : 'recetas guardadas'}
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-6 pb-2 flex flex-col gap-3">
+          {/* Category pills */}
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setCategoriaActiva('')}
+              className="text-xs uppercase font-bold px-3 py-1.5 rounded-full transition-all"
+              style={{
+                fontFamily: 'var(--font-body)',
+                letterSpacing: '0.08em',
+                background: !categoriaActiva ? '#C4622D' : '#E8D0B4',
+                color: !categoriaActiva ? 'white' : '#6B4A38',
+              }}
+            >
+              Todas
+            </button>
+            {categoriasPresentes.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setCategoriaActiva(cat === categoriaActiva ? '' : cat)}
+                className="text-xs uppercase font-bold px-3 py-1.5 rounded-full transition-all"
+                style={{
+                  fontFamily: 'var(--font-body)',
+                  letterSpacing: '0.08em',
+                  background: cat === categoriaActiva ? '#C4622D' : '#E8D0B4',
+                  color: cat === categoriaActiva ? 'white' : '#6B4A38',
+                }}
+              >
+                {CATEGORIAS[cat] ?? '🍽️'} {cat}
+              </button>
+            ))}
+          </div>
+
+          {/* Ingredient search */}
+          <div className="relative max-w-sm">
+            <span
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-sm"
+              style={{ color: '#A0846F' }}
+            >
+              🔍
+            </span>
+            <input
+              type="text"
+              placeholder="Buscar por ingrediente…"
+              value={busquedaIng}
+              onChange={(e) => setBusquedaIng(e.target.value)}
+              className="w-full pl-8 pr-4 py-2 rounded-full text-sm outline-none"
+              style={{
+                fontFamily: 'var(--font-body)',
+                background: '#F5E6D3',
+                border: '1.5px solid #E8D0B4',
+                color: '#3D2B1F',
+              }}
+            />
+            {busquedaIng && (
+              <button
+                onClick={() => setBusquedaIng('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-sm"
+                style={{ color: '#A0846F' }}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Result count */}
+          <p style={{ color: '#A0846F', fontFamily: 'var(--font-body)', fontSize: '0.8rem', letterSpacing: '0.05em' }}>
+            {recetasFiltradas.length} {recetasFiltradas.length === 1 ? 'receta' : 'recetas'}
+            {(categoriaActiva || busquedaIng) ? ' encontradas' : ' guardadas'}
           </p>
         </div>
       )}
 
       {/* Main content */}
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 pb-20">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 pt-4 pb-20">
         {loading ? (
           <div className="flex justify-center py-24">
             <div
@@ -208,8 +289,15 @@ export default function GalleryPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {recetas.length === 0 ? (
               <EmptyState />
+            ) : recetasFiltradas.length === 0 ? (
+              <div className="col-span-full flex flex-col items-center justify-center py-20 fade-up">
+                <p className="text-4xl mb-4">🔍</p>
+                <p style={{ color: '#A0846F', fontFamily: 'var(--font-body)', fontSize: '1rem' }}>
+                  No hay recetas con ese filtro.
+                </p>
+              </div>
             ) : (
-              recetas.map((receta, i) => (
+              recetasFiltradas.map((receta, i) => (
                 <RecetaCard key={receta.id} receta={receta} index={i} />
               ))
             )}
