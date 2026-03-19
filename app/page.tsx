@@ -31,9 +31,9 @@ function RecetaCard({ receta, index }: { receta: Receta; index: number }) {
           className="relative w-full overflow-hidden"
           style={{ paddingBottom: '65%', background: '#E8D0B4' }}
         >
-          {receta.imagen_url ? (
+          {(receta.imagenes?.[0] ?? receta.imagen_url) ? (
             <img
-              src={receta.imagen_url}
+              src={receta.imagenes?.[0] ?? receta.imagen_url}
               alt={receta.nombre}
               className="absolute inset-0 w-full h-full object-cover"
             />

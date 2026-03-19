@@ -80,11 +80,11 @@ export default function RecetaPage({ params }: { params: Promise<{ id: string }>
         />
 
         {/* Background image if available */}
-        {receta.imagen_url && (
+        {(receta.imagenes?.[0] ?? receta.imagen_url) && (
           <div
             className="absolute inset-0"
             style={{
-              backgroundImage: `url(${receta.imagen_url})`,
+              backgroundImage: `url(${(receta.imagenes?.[0] ?? receta.imagen_url)})`,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
               opacity: 0.2,
@@ -179,10 +179,10 @@ export default function RecetaPage({ params }: { params: Promise<{ id: string }>
       </header>
 
       {/* Main image below header if available */}
-      {receta.imagen_url && (
+      {(receta.imagenes?.[0] ?? receta.imagen_url) && (
         <div className="max-w-2xl mx-auto px-4 -mt-6 relative z-10 mb-2">
           <img
-            src={receta.imagen_url}
+            src={(receta.imagenes?.[0] ?? receta.imagen_url)}
             alt={receta.nombre}
             className="w-full rounded-2xl object-cover"
             style={{ maxHeight: '360px', boxShadow: '0 8px 32px #3D2B1F33' }}
@@ -190,6 +190,23 @@ export default function RecetaPage({ params }: { params: Promise<{ id: string }>
         </div>
       )}
 
+
+      {/* Image gallery — shown when more than 1 image */}
+      {(receta.imagenes?.length ?? 0) > 1 && (
+        <div className="max-w-2xl mx-auto px-4 pb-4">
+          <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'thin' }}>
+            {receta.imagenes.map((src, i) => (
+              <img
+                key={i}
+                src={src}
+                alt={'foto ' + String(i + 1)}
+                className="rounded-xl object-cover shrink-0 cursor-pointer opacity-80 hover:opacity-100 transition-opacity"
+                style={{ width: 96, height: 96, border: i === 0 ? '2px solid #C4622D' : '2px solid transparent' }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
       {/* Main content */}
       <main className="max-w-2xl mx-auto px-4 sm:px-6 py-10 pb-24">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
