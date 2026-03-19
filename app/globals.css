@@ -1,26 +1,176 @@
+@import url("https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Lato:wght@300;400;700;900&display=swap");
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  --color-terracotta: #C4622D;
+  --color-terracotta-light: #D97B46;
+  --color-terracotta-dark: #9E4E24;
+  --color-cream: #FBF3E8;
+  --color-sand: #F5E6D3;
+  --color-sand-dark: #E8D0B4;
+  --color-olive: #7A8C5E;
+  --color-olive-light: #9BAF80;
+  --color-espresso: #3D2B1F;
+  --color-espresso-light: #6B4A38;
+  --color-espresso-muted: #A0846F;
+
+  --font-heading: "Playfair Display", Georgia, serif;
+  --font-body: "Lato", system-ui, sans-serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: #FBF3E8;
+  color: #3D2B1F;
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-heading);
+}
+
+/* Decorative divider */
+.divider-ornamental {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  color: #C4622D;
+}
+
+.divider-ornamental::before,
+.divider-ornamental::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, transparent, #C4622D66, transparent);
+}
+
+/* Card hover lift */
+.recipe-card {
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+
+.recipe-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 32px #C4622D22, 0 4px 12px #3D2B1F18;
+}
+
+/* Noise texture overlay for header */
+.noise-texture {
+  position: relative;
+}
+
+.noise-texture::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* Input styles */
+.input-receta {
+  width: 100%;
+  background: #FBF3E8;
+  border: 1.5px solid #E8D0B4;
+  border-radius: 0.5rem;
+  padding: 0.625rem 0.875rem;
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  color: #3D2B1F;
+  outline: none;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.input-receta:focus {
+  border-color: #C4622D;
+  box-shadow: 0 0 0 3px #C4622D18;
+}
+
+.input-receta::placeholder {
+  color: #A0846F;
+}
+
+/* Button styles */
+.btn-primary {
+  background: #C4622D;
+  color: white;
+  font-family: var(--font-body);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.625rem 1.5rem;
+  border-radius: 0.5rem;
+  border: none;
+  cursor: pointer;
+  transition: background 150ms ease, transform 100ms ease;
+}
+
+.btn-primary:hover {
+  background: #D97B46;
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+  background: #9E4E24;
+}
+
+.btn-primary:disabled {
+  background: #A0846F;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: #C4622D;
+  font-family: var(--font-body);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 0.625rem 1.25rem;
+  border-radius: 0.5rem;
+  border: 1.5px solid #C4622D;
+  cursor: pointer;
+  transition: background 150ms ease, transform 100ms ease;
+}
+
+.btn-secondary:hover {
+  background: #C4622D12;
+}
+
+.btn-secondary:active {
+  transform: scale(0.98);
+}
+
+/* Fade in animation */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-up {
+  animation: fadeUp 0.4s ease both;
+}
+
+/* Drop zone */
+.drop-zone {
+  border: 2px dashed #E8D0B4;
+  border-radius: 1rem;
+  transition: border-color 200ms ease, background 200ms ease;
+  cursor: pointer;
+}
+
+.drop-zone:hover,
+.drop-zone.dragging {
+  border-color: #C4622D;
+  background: #C4622D08;
 }
