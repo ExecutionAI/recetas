@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, DragEvent, ChangeEvent } from 'react'
+import { useState, useRef, DragEvent, ChangeEvent, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -381,42 +381,272 @@ function FotoForm({ onSuccess }: { onSuccess: () => void }) {
   )
 }
 
+/* ── Voice recorder hook ──────────────────────────────────────── */
+function useVoiceRecorder() {
+  const [recording, setRecording] = useState(false)
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
+  const [audioUrl, setAudioUrl] = useState<string | null>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<BlobPart[]>([])
+
+  useEffect(() => {
+    return () => { if (audioUrl) URL.revokeObjectURL(audioUrl) }
+  }, [audioUrl])
+
+  async function start() {
+    chunksRef.current = []
+    setAudioBlob(null)
+    setAudioUrl(null)
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    const mr = new MediaRecorder(stream)
+    mediaRecorderRef.current = mr
+    mr.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+    mr.onstop = () => {
+      const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
+      setAudioBlob(blob)
+      setAudioUrl(URL.createObjectURL(blob))
+      stream.getTracks().forEach((t) => t.stop())
+    }
+    mr.start()
+    setRecording(true)
+  }
+
+  function stop() {
+    mediaRecorderRef.current?.stop()
+    setRecording(false)
+  }
+
+  function reset() {
+    if (audioUrl) URL.revokeObjectURL(audioUrl)
+    setAudioBlob(null)
+    setAudioUrl(null)
+    setRecording(false)
+  }
+
+  return { recording, audioBlob, audioUrl, start, stop, reset }
+}
+
+/* ── Voice form ──────────────────────────────────────────────── */
+function VozForm({ onSuccess }: { onSuccess: () => void }) {
+  const { recording, audioBlob, audioUrl, start, stop, reset } = useVoiceRecorder()
+  const [analyzing, setAnalyzing] = useState(false)
+  const [form, setForm] = useState<RecetaInput | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [transcripcion, setTranscripcion] = useState('')
+
+  function set<K extends keyof RecetaInput>(key: K, val: RecetaInput[K]) {
+    setForm((f) => f ? { ...f, [key]: val } : f)
+  }
+
+  async function analyze() {
+    if (!audioBlob) return
+    setAnalyzing(true)
+    try {
+      const fd = new FormData()
+      fd.append('audio', audioBlob, 'receta.webm')
+      const res = await fetch('/api/analizar-voz', { method: 'POST', body: fd })
+      if (!res.ok) throw new Error(await res.text())
+      const json = await res.json()
+      setTranscripcion(json.transcripcion ?? '')
+      setForm({
+        ...EMPTY_FORM,
+        ...json,
+        ingredientes: Array.isArray(json.ingredientes) && json.ingredientes.length ? json.ingredientes : [''],
+        pasos: Array.isArray(json.pasos) && json.pasos.length ? json.pasos : [''],
+        imagenes: [],
+        fuente: 'manual',
+      })
+    } catch (err) {
+      console.error(err)
+      alert('No se pudo analizar el audio. Intenta de nuevo.')
+    } finally {
+      setAnalyzing(false)
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form || !form.nombre.trim()) return
+    setSaving(true)
+    try {
+      const clean = {
+        ...form,
+        ingredientes: form.ingredientes.filter((s) => s.trim()),
+        pasos: form.pasos.filter((s) => s.trim()),
+      }
+      await addDoc(collection(db, 'recetas'), { ...clean, createdAt: serverTimestamp() })
+      onSuccess()
+    } catch (err) {
+      console.error(err)
+      alert('Error guardando la receta. Intenta de nuevo.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (form) {
+    return (
+      <div className="fade-up">
+        <div className="rounded-xl p-3 mb-6" style={{ background: '#7A8C5E18', border: '1px solid #7A8C5E44' }}>
+          <p className="text-sm font-bold mb-1" style={{ color: '#7A8C5E', fontFamily: 'var(--font-body)' }}>
+            ✓ IA extrajo la receta · revisa y edita antes de guardar
+          </p>
+          {transcripcion && (
+            <p className="text-xs italic mb-2" style={{ color: '#A0846F', fontFamily: 'var(--font-body)' }}>
+              "{transcripcion}"
+            </p>
+          )}
+          <button type="button" className="text-xs underline" style={{ color: '#A0846F', fontFamily: 'var(--font-body)' }} onClick={() => { setForm(null); reset() }}>
+            Grabar de nuevo
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label className="block text-sm font-bold mb-1.5" style={{ color: '#3D2B1F', fontFamily: 'var(--font-body)' }}>Nombre *</label>
+            <input className="input-receta" value={form.nombre} onChange={(e) => set('nombre', e.target.value)} required />
+          </div>
+          <div>
+            <label className="block text-sm font-bold mb-1.5" style={{ color: '#3D2B1F', fontFamily: 'var(--font-body)' }}>Descripción</label>
+            <textarea className="input-receta" rows={3} value={form.descripcion} onChange={(e) => set('descripcion', e.target.value)} style={{ resize: 'vertical' }} />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-bold mb-1.5" style={{ color: '#3D2B1F', fontFamily: 'var(--font-body)' }}>Categoría</label>
+              <select className="input-receta" value={form.categoria} onChange={(e) => set('categoria', e.target.value)}>
+                {CATEGORIAS.map((c) => (<option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-bold mb-1.5" style={{ color: '#3D2B1F', fontFamily: 'var(--font-body)' }}>Tiempo</label>
+              <input className="input-receta" value={form.tiempo_prep} onChange={(e) => set('tiempo_prep', e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-sm font-bold mb-1.5" style={{ color: '#3D2B1F', fontFamily: 'var(--font-body)' }}>Porciones</label>
+              <input className="input-receta" value={form.porciones} onChange={(e) => set('porciones', e.target.value)} />
+            </div>
+          </div>
+          <ListEditor label="Ingredientes" items={form.ingredientes} onChange={(v) => set('ingredientes', v)} placeholder="Ingrediente" />
+          <ListEditor label="Pasos" items={form.pasos} onChange={(v) => set('pasos', v)} placeholder="Paso" />
+          <ImagenUploader label="Fotos de la receta" imagenes={form.imagenes} onChange={(imgs) => set('imagenes', imgs)} />
+          <button type="submit" className="btn-primary w-full py-3 text-base" disabled={saving}>
+            {saving ? 'Guardando...' : '💾 Guardar receta'}
+          </button>
+        </form>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col items-center py-10 text-center">
+      <div className="text-6xl mb-6">🎙️</div>
+      <p className="text-base font-bold mb-1" style={{ color: '#3D2B1F', fontFamily: 'var(--font-body)' }}>
+        Dicta tu receta en voz
+      </p>
+      <p className="text-sm mb-8 max-w-xs" style={{ color: '#A0846F', fontFamily: 'var(--font-body)' }}>
+        Describe los ingredientes y pasos. La IA la estructurará automáticamente.
+      </p>
+
+      {!audioBlob && !recording && (
+        <button
+          onClick={start}
+          className="w-24 h-24 rounded-full flex items-center justify-center text-4xl transition-transform active:scale-95 hover:scale-105 shadow-lg"
+          style={{ background: '#C4622D', color: 'white', boxShadow: '0 4px 24px #C4622D55' }}
+        >
+          🎤
+        </button>
+      )}
+
+      {recording && (
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative w-24 h-24 rounded-full flex items-center justify-center text-4xl"
+            style={{ background: '#C4622D', color: 'white' }}>
+            <span>🎤</span>
+            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full animate-ping" style={{ background: '#ef4444' }} />
+          </div>
+          <p className="text-sm font-bold animate-pulse" style={{ color: '#C4622D', fontFamily: 'var(--font-body)' }}>Grabando...</p>
+          <button
+            onClick={stop}
+            className="btn-secondary px-6 py-2.5 text-sm font-bold"
+          >
+            ⏹ Detener
+          </button>
+        </div>
+      )}
+
+      {audioBlob && !recording && (
+        <div className="flex flex-col items-center gap-4 w-full max-w-sm">
+          <audio src={audioUrl ?? undefined} controls className="w-full rounded-xl" style={{ accentColor: '#C4622D' }} />
+          <div className="flex gap-3 w-full">
+            <button
+              onClick={reset}
+              className="btn-secondary flex-1 py-2.5 text-sm"
+            >
+              🔄 Grabar de nuevo
+            </button>
+            <button
+              onClick={analyze}
+              disabled={analyzing}
+              className="btn-primary flex-1 py-2.5 text-sm"
+            >
+              {analyzing ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="w-4 h-4 rounded-full border-2 animate-spin inline-block" style={{ borderColor: '#E8D0B4', borderTopColor: 'transparent' }} />
+                  Analizando...
+                </span>
+              ) : '✨ Analizar con IA'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ── Page ─────────────────────────────────────────────────────── */
 export default function AgregarPage() {
   const router = useRouter()
-  const [tab, setTab] = useState<'manual' | 'foto'>('manual')
+  const [tab, setTab] = useState<'manual' | 'foto' | 'voz'>('manual')
+
+  const TAB_LABELS: Record<typeof tab, string> = {
+    manual: '✍️ Escribir',
+    foto: '📷 Foto',
+    voz: '🎙️ Voz',
+  }
+
   return (
     <div className="min-h-screen" style={{ background: '#FBF3E8' }}>
       <header
         className="relative px-6 py-8 flex items-center"
         style={{ background: 'linear-gradient(160deg, #3D2B1F 0%, #6B4A38 100%)', borderBottom: '3px solid #C4622D' }}
       >
-        <button onClick={() => router.back()} className="mr-4 text-2xl transition-opacity hover:opacity-70" style={{ color: '#E8D0B4' }}>←</button>
+        <button onClick={() => router.push('/')} className="mr-4 text-2xl transition-opacity hover:opacity-70" style={{ color: '#E8D0B4' }}>←</button>
         <div>
           <h1 className="text-2xl" style={{ fontFamily: 'var(--font-heading)', color: '#FBF3E8', fontStyle: 'italic' }}>Agregar Receta</h1>
           <p className="text-xs mt-0.5" style={{ color: '#A0846F', fontFamily: 'var(--font-body)', letterSpacing: '0.05em' }}>Las Recetas de la Abuela</p>
         </div>
       </header>
       <div className="sticky top-0 z-10 flex" style={{ background: '#F5E6D3', borderBottom: '1px solid #E8D0B4' }}>
-        {(['manual', 'foto'] as const).map((t) => (
+        {(['manual', 'foto', 'voz'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className="flex-1 py-3.5 text-sm font-bold uppercase transition-colors"
             style={{
               fontFamily: 'var(--font-body)',
-              letterSpacing: '0.1em',
+              letterSpacing: '0.08em',
               color: tab === t ? '#C4622D' : '#A0846F',
               borderBottom: tab === t ? '2.5px solid #C4622D' : '2.5px solid transparent',
               background: tab === t ? '#FBF3E8' : 'transparent',
             }}
           >
-            {t === 'manual' ? '✍️ Escribir' : '📷 Foto'}
+            {TAB_LABELS[t]}
           </button>
         ))}
       </div>
       <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8 pb-20">
-        {tab === 'manual' ? <ManualForm onSuccess={() => router.push('/')} /> : <FotoForm onSuccess={() => router.push('/')} />}
+        {tab === 'manual' && <ManualForm onSuccess={() => router.push('/')} />}
+        {tab === 'foto' && <FotoForm onSuccess={() => router.push('/')} />}
+        {tab === 'voz' && <VozForm onSuccess={() => router.push('/')} />}
       </main>
     </div>
   )

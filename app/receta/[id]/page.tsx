@@ -94,11 +94,20 @@ export default function RecetaPage({ params }: { params: Promise<{ id: string }>
 
         {/* Back button */}
         <button
-          onClick={() => router.back()}
+          onClick={() => router.push('/')}
           className="absolute top-6 left-6 transition-opacity hover:opacity-70"
           style={{ color: '#E8D0B4', fontSize: '1.5rem' }}
         >
           ←
+        </button>
+
+        {/* Edit button */}
+        <button
+          onClick={() => router.push(`/receta/${id}/editar`)}
+          className="absolute top-6 right-6 transition-opacity hover:opacity-70 text-sm font-bold px-3 py-1 rounded-full"
+          style={{ background: '#C4622D88', color: '#FBF3E8', fontFamily: 'var(--font-body)', border: '1px solid #E8D0B466' }}
+        >
+          ✏️ Editar
         </button>
 
         {/* Content */}
